@@ -7,7 +7,7 @@
  */
 
 import * as Rx from "rxjs";
-import {get, isEmpty, omit} from "lodash";
+import {isEmpty, omit} from "lodash";
 import uuid from 'uuid';
 
 import {SET_CONTROL_PROPERTY, TOGGLE_CONTROL, toggleControl} from "@mapstore/actions/controls";
@@ -18,7 +18,7 @@ import {removeAdditionalLayer, updateAdditionalLayer} from '@mapstore/actions/ad
 import {
     errorFeatureInfo,
     exceptionsFeatureInfo,
-    getVectorInfo,
+    getVectorInfo, hideMapinfoMarker,
     LOAD_FEATURE_INFO,
     loadFeatureInfo,
     newMapInfoRequest,
@@ -86,7 +86,12 @@ import {localizedLayerStylesEnvSelector} from "@mapstore/selectors/localizedLaye
 import {buildIdentifyRequest, clickedPointToGeoJson, filterRequestParams} from "@mapstore/utils/MapInfoUtils";
 import {getFeatureInfo} from "@mapstore/api/identify";
 import {reprojectGeoJson} from "@mapstore/utils/CoordinatesUtils";
-import {highlightStyleSelector, mapInfoDisabledSelector, mapTriggerSelector} from "@mapstore/selectors/mapInfo";
+import {
+    highlightStyleSelector,
+    mapInfoDisabledSelector,
+    mapTriggerSelector,
+    showMarkerSelector
+} from "@mapstore/selectors/mapInfo";
 import {styleFeatures} from "@js/extension/utils/UrbanismeUtils";
 
 /**
@@ -141,7 +146,8 @@ export const toggleLandPlanningEpic = (action$, store) =>
             const state = store.getState();
             const {cadastreWMSURL: url, layer: name = DEFAULT_URBANISME_LAYER} = configSelector(state) || {};
             const enabled = urbanimseControlSelector(state);
-            const mapInfoEnabled = get(state, "mapInfo.enabled");
+            const mapInfoEnabled = !mapInfoDisabledSelector(state);
+            const infoMarkerIsShown = showMarkerSelector(state);
             const isMeasureEnabled = measureSelector(state);
             const mapHoverTrigger = mapTriggerSelector(state);
             if (enabled) {
@@ -170,9 +176,10 @@ export const toggleLandPlanningEpic = (action$, store) =>
                             visibility: true
                         })
                 ]).concat([
-                    ...(mapInfoEnabled ? [toggleMapInfoState()] : []),
+                    ...(mapInfoEnabled ? [toggleMapInfoState(), purgeMapInfoResults()] : []),
                     ...(isMeasureEnabled ? [toggleControl("measure")] : []),
-                    ...(mapHoverTrigger === 'hover' ? [setMapTrigger("click")] : [])
+                    ...(mapHoverTrigger === 'hover' ? [setMapTrigger("click")] : []),
+                    ...(infoMarkerIsShown ? [hideMapinfoMarker()] : [])
                 ]);
             }
             const layer = urbanismeLayerSelector(state);
